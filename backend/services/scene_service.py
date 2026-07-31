@@ -1,22 +1,17 @@
 import torch
+from torchvision import models, transforms
 from PIL import Image
-import timm
-from torchvision import transforms
-# Load pretrained scene model
-model = timm.create_model(
-    "resnet50.a1_in1k",
-    pretrained=True
-)
+# Load a pretrained ResNet18 as a placeholder
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 model.eval()
-transform = transforms.Compose([
-    transforms.Resize((224,224)),
-    transforms.ToTensor(),
-])
+transform = transforms.Compose([transforms.Resize((224, 224)),transforms.ToTensor(),])
 def detect_scene(image_path):
     image = Image.open(image_path).convert("RGB")
-    image = transform(image)
-    image = image.unsqueeze(0)
+    image = transform(image).unsqueeze(0)
     with torch.no_grad():
-        output = model(image)
-    prediction = torch.argmax(output, dim=1)
-    return str(prediction.item())
+        outputs = model(image)
+    predicted = outputs.argmax(dim=1).item()
+    return {
+        "scene": f"Class ID {predicted}",
+        "confidence": float(torch.softmax(outputs, dim=1)[0][predicted])
+    }

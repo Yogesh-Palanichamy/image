@@ -1,19 +1,27 @@
-from flask import Flask
+import os
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-from routes.upload import upload_bp
-from routes.train import train_bp
-from routes.predict import predict_bp
+from werkzeug.utils import secure_filename
+from services.analysis_service import analyze_image
 app = Flask(__name__)
 CORS(app)
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 500
-app.register_blueprint(upload_bp, url_prefix="/upload")
-app.register_blueprint(train_bp, url_prefix="/train")
-app.register_blueprint(predict_bp, url_prefix="/predict")
+UPLOAD_FOLDER = "uploads/images"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 @app.route("/")
 def home():
-    return {
-        "Project": "Cross Domain Few Shot Model Adaptation Tool",
-        "Status": "Running"
-    }
+    return {"message": "AI Image Processor API Running"}
+@app.route("/analyze-image", methods=["POST"])
+def analyze():
+    if "image" not in request.files:
+        return jsonify({"error": "No image uploaded"}), 400
+    file = request.files["image"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    file.save(filepath)
+    result = analyze_image(filepath)
+    return jsonify(result)
 if __name__ == "__main__":
     app.run(debug=True)
