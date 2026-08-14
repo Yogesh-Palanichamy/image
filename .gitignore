@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment
+.env
+
+# Datasets
+backend/datasets/
+
+# Training
+backend/runs/
+backend/training/
+
+# Uploads
+backend/uploads/
+
+# Generated outputs
+backend/outputs/
+
+# Large models
+*.pt
+*.onnx
+*.tflite
+
+# Video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

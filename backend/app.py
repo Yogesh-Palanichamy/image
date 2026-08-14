@@ -23,6 +23,8 @@ from services.analysis_service import analyze_image
 
 from services.video_service import process_video
 
+from services.pdf_service import create_pdf_report
+
 
 # ============================================================
 # FLASK
@@ -45,6 +47,12 @@ OUTPUT_FOLDER = "outputs"
 
 PROCESSED_FOLDER = "outputs/processed"
 
+REPORT_FOLDER = "outputs/reports"
+
+
+# ============================================================
+# CREATE FOLDERS
+# ============================================================
 
 os.makedirs(
     IMAGE_FOLDER,
@@ -66,6 +74,11 @@ os.makedirs(
     exist_ok=True
 )
 
+os.makedirs(
+    REPORT_FOLDER,
+    exist_ok=True
+)
+
 
 # ============================================================
 # CONFIG
@@ -82,6 +95,10 @@ app.config[
 app.config[
     "PROCESSED_FOLDER"
 ] = PROCESSED_FOLDER
+
+app.config[
+    "REPORT_FOLDER"
+] = REPORT_FOLDER
 
 
 # ============================================================
@@ -100,7 +117,6 @@ tracking_model = YOLO(
 # ============================================================
 
 current_session_id = None
-
 
 live_object_counter = Counter()
 
@@ -139,6 +155,10 @@ def home():
 )
 def analyze():
 
+    # --------------------------------------------------------
+    # Check image
+    # --------------------------------------------------------
+
     if "image" not in request.files:
 
         return jsonify({
@@ -148,9 +168,15 @@ def analyze():
 
         }), 400
 
+
     file = request.files[
         "image"
     ]
+
+
+    # --------------------------------------------------------
+    # Check filename
+    # --------------------------------------------------------
 
     if file.filename == "":
 
@@ -161,9 +187,19 @@ def analyze():
 
         }), 400
 
+
+    # --------------------------------------------------------
+    # Secure filename
+    # --------------------------------------------------------
+
     filename = secure_filename(
         file.filename
     )
+
+
+    # --------------------------------------------------------
+    # Save image
+    # --------------------------------------------------------
 
     filepath = os.path.join(
 
@@ -175,7 +211,15 @@ def analyze():
 
     )
 
-    file.save(filepath)
+
+    file.save(
+        filepath
+    )
+
+
+    # --------------------------------------------------------
+    # Analyze image
+    # --------------------------------------------------------
 
     try:
 
@@ -183,9 +227,34 @@ def analyze():
             filepath
         )
 
+
+        # Make sure result is a dictionary
+        if not isinstance(
+            result,
+            dict
+        ):
+
+            result = {
+
+                "success":
+                    True,
+
+                "result":
+                    result
+
+            }
+
+
+        # Tell PDF generator this is an image
+        result[
+            "input_type"
+        ] = "Image"
+
+
         return jsonify(
             result
         )
+
 
     except Exception as error:
 
@@ -194,7 +263,11 @@ def analyze():
             error
         )
 
+
         return jsonify({
+
+            "success":
+                False,
 
             "error":
                 "Image analysis failed",
@@ -262,7 +335,7 @@ def live_detect():
 
 
     # ========================================================
-    # SESSION
+    # SESSION ID
     # ========================================================
 
     session_id = request.form.get(
@@ -281,19 +354,25 @@ def live_detect():
     # NEW SESSION
     # ========================================================
 
-    if current_session_id != session_id:
+    if (
+        current_session_id
+        != session_id
+    ):
 
         print()
         print(
             "===================================="
         )
+
         print(
             "NEW LIVE SESSION"
         )
+
         print(
             "Session:",
             session_id
         )
+
         print(
             "===================================="
         )
@@ -302,6 +381,7 @@ def live_detect():
         current_session_id = (
             session_id
         )
+
 
         live_object_counter = Counter()
 
@@ -312,6 +392,10 @@ def live_detect():
         live_detection_history = []
 
 
+        # Reset tracker
+        tracking_model.predictor = None
+
+
     # ========================================================
     # READ IMAGE
     # ========================================================
@@ -320,15 +404,24 @@ def live_detect():
 
         image_bytes = file.read()
 
+
         image_array = np.frombuffer(
+
             image_bytes,
+
             dtype=np.uint8
+
         )
 
+
         frame = cv2.imdecode(
+
             image_array,
+
             cv2.IMREAD_COLOR
+
         )
+
 
     except Exception as error:
 
@@ -345,6 +438,10 @@ def live_detect():
 
         }), 400
 
+
+    # ========================================================
+    # CHECK FRAME
+    # ========================================================
 
     if frame is None:
 
@@ -377,12 +474,14 @@ def live_detect():
 
         )
 
+
     except Exception as error:
 
         print(
             "YOLO tracking error:",
             error
         )
+
 
         return jsonify({
 
@@ -400,6 +499,7 @@ def live_detect():
 
     result = results[0]
 
+
     detections = []
 
 
@@ -411,20 +511,26 @@ def live_detect():
 
 
     # ========================================================
-    # DETECTIONS
+    # PROCESS DETECTIONS
     # ========================================================
 
     if result.boxes is not None:
 
         boxes = result.boxes
 
+
         for index in range(
             len(boxes)
         ):
 
             class_id = int(
-                boxes.cls[index].item()
+
+                boxes.cls[
+                    index
+                ].item()
+
             )
+
 
             object_name = (
                 tracking_model.names[
@@ -432,8 +538,13 @@ def live_detect():
                 ]
             )
 
+
             confidence = float(
-                boxes.conf[index].item()
+
+                boxes.conf[
+                    index
+                ].item()
+
             )
 
 
@@ -450,7 +561,10 @@ def live_detect():
             # CONFIDENCE
             # ------------------------------------------------
 
-            if object_name not in live_confidence_values:
+            if (
+                object_name
+                not in live_confidence_values
+            ):
 
                 live_confidence_values[
                     object_name
@@ -465,14 +579,19 @@ def live_detect():
 
 
             # ------------------------------------------------
-            # BOX
+            # BOUNDING BOX
             # ------------------------------------------------
 
-            coordinates = boxes.xyxy[
-                index
-            ].tolist()
+            coordinates = (
+                boxes.xyxy[
+                    index
+                ].tolist()
+            )
 
-            x1, y1, x2, y2 = coordinates
+
+            x1, y1, x2, y2 = (
+                coordinates
+            )
 
 
             # ------------------------------------------------
@@ -481,10 +600,15 @@ def live_detect():
 
             track_id = None
 
+
             if boxes.id is not None:
 
                 track_id = int(
-                    boxes.id[index].item()
+
+                    boxes.id[
+                        index
+                    ].item()
+
                 )
 
 
@@ -539,7 +663,7 @@ def live_detect():
 
 
     # ========================================================
-    # LIVE RESPONSE
+    # RESPONSE
     # ========================================================
 
     return jsonify({
@@ -571,14 +695,13 @@ def live_summary():
 
     global current_session_id
 
-
     session_id = request.form.get(
         "session_id"
     )
 
 
     # ========================================================
-    # CONFIDENCE SUMMARY
+    # OBJECT SUMMARY
     # ========================================================
 
     objects = {}
@@ -589,10 +712,15 @@ def live_summary():
     ):
 
         values = (
+
             live_confidence_values.get(
+
                 object_name,
+
                 []
+
             )
+
         )
 
 
@@ -605,21 +733,30 @@ def live_summary():
 
             "average_confidence":
                 round(
+
                     sum(values) /
                     len(values),
+
                     4
+
                 ) if values else 0,
 
             "highest_confidence":
                 round(
+
                     max(values),
+
                     4
+
                 ) if values else 0,
 
             "lowest_confidence":
                 round(
+
                     min(values),
+
                     4
+
                 ) if values else 0
 
         }
@@ -634,11 +771,19 @@ def live_summary():
         "success":
             True,
 
+        "input_type":
+            "Live Camera",
+
         "session_id":
             session_id,
 
         "total_frames":
             live_frame_count,
+
+        "total_detections":
+            sum(
+                live_object_counter.values()
+            ),
 
         "objects":
             objects,
@@ -653,17 +798,23 @@ def live_summary():
     print(
         "===================================="
     )
+
     print(
         "LIVE SESSION SUMMARY"
     )
+
     print(
         "Frames:",
         live_frame_count
     )
+
     print(
         "Objects:",
-        dict(live_object_counter)
+        dict(
+            live_object_counter
+        )
     )
+
     print(
         "===================================="
     )
@@ -695,13 +846,14 @@ def upload_video():
     print(
         "===================================="
     )
+
     print(
         "VIDEO UPLOAD"
     )
 
 
     # ========================================================
-    # CHECK FILE
+    # CHECK VIDEO
     # ========================================================
 
     if "video" not in request.files:
@@ -761,20 +913,26 @@ def upload_video():
 
 
     # ========================================================
-    # OUTPUT
+    # OUTPUT VIDEO
     # ========================================================
 
     name_without_extension = (
+
         os.path.splitext(
             filename
         )[0]
+
     )
 
 
     output_filename = (
+
         "processed_"
+
         + name_without_extension
+
         + ".mp4"
+
     )
 
 
@@ -794,10 +952,12 @@ def upload_video():
         video_path
     )
 
+
     print(
         "Output:",
         output_path
     )
+
 
     print(
         "===================================="
@@ -805,7 +965,7 @@ def upload_video():
 
 
     # ========================================================
-    # PROCESS
+    # PROCESS VIDEO
     # ========================================================
 
     try:
@@ -819,15 +979,22 @@ def upload_video():
         )
 
 
-        # ====================================================
-        # VIDEO URL
-        # ====================================================
+        # ----------------------------------------------------
+        # Add information
+        # ----------------------------------------------------
+
+        result[
+            "input_type"
+        ] = "Video"
+
 
         result[
             "video_url"
         ] = (
+
             "/processed/"
             + output_filename
+
         )
 
 
@@ -841,6 +1008,7 @@ def upload_video():
         print(
             "VIDEO PROCESSING ERROR:"
         )
+
 
         print(
             str(error)
@@ -869,9 +1037,7 @@ def upload_video():
     "/processed/<filename>",
     methods=["GET"]
 )
-def processed_video(
-    filename
-):
+def processed_video(filename):
 
     return send_from_directory(
 
@@ -885,7 +1051,164 @@ def processed_video(
 
 
 # ============================================================
-# RUN
+# GENERATE PDF REPORT
+# ============================================================
+
+@app.route(
+    "/generate-pdf",
+    methods=["POST"]
+)
+def generate_pdf():
+
+    try:
+
+        # ----------------------------------------------------
+        # Get data from React
+        # ----------------------------------------------------
+
+        data = request.get_json()
+
+
+        if not data:
+
+            return jsonify({
+
+                "success":
+                    False,
+
+                "error":
+                    "No report data received"
+
+            }), 400
+
+
+        # ----------------------------------------------------
+        # Generate unique filename
+        # ----------------------------------------------------
+
+        report_id = str(
+            uuid.uuid4()
+        )
+
+
+        filename = (
+
+            "ai_report_"
+
+            + report_id
+
+            + ".pdf"
+
+        )
+
+
+        output_path = os.path.join(
+
+            app.config[
+                "REPORT_FOLDER"
+            ],
+
+            filename
+
+        )
+
+
+        print()
+        print(
+            "===================================="
+        )
+
+        print(
+            "GENERATING PDF REPORT"
+        )
+
+        print(
+            "Output:",
+            output_path
+        )
+
+        print(
+            "===================================="
+        )
+
+
+        # ----------------------------------------------------
+        # Create PDF
+        # ----------------------------------------------------
+
+        create_pdf_report(
+
+            data,
+
+            output_path
+
+        )
+
+
+        # ----------------------------------------------------
+        # Response
+        # ----------------------------------------------------
+
+        return jsonify({
+
+            "success":
+                True,
+
+            "message":
+                "PDF report generated successfully",
+
+            "pdf_url":
+                "/reports/"
+                + filename
+
+        })
+
+
+    except Exception as error:
+
+        print(
+            "PDF generation error:",
+            error
+        )
+
+
+        return jsonify({
+
+            "success":
+                False,
+
+            "error":
+                "PDF generation failed",
+
+            "details":
+                str(error)
+
+        }), 500
+
+
+# ============================================================
+# SERVE PDF REPORT
+# ============================================================
+
+@app.route(
+    "/reports/<filename>",
+    methods=["GET"]
+)
+def serve_report(filename):
+
+    return send_from_directory(
+
+        app.config[
+            "REPORT_FOLDER"
+        ],
+
+        filename
+
+    )
+
+
+# ============================================================
+# RUN SERVER
 # ============================================================
 
 if __name__ == "__main__":

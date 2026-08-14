@@ -11,17 +11,31 @@ import {
     Tooltip,
 } from "recharts";
 
+
 function ImageUpload() {
 
     // ============================================================
     // STATE
     // ============================================================
 
-    const [image, setImage] = useState(null);
-    const [preview, setPreview] = useState("");
-    const [result, setResult] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [image, setImage] =
+        useState(null);
+
+    const [preview, setPreview] =
+        useState("");
+
+    const [result, setResult] =
+        useState(null);
+
+    const [loading, setLoading] =
+        useState(false);
+
+    const [pdfLoading, setPdfLoading] =
+        useState(false);
+
+    const [error, setError] =
+        useState("");
+
 
     // ============================================================
     // SELECT IMAGE
@@ -29,62 +43,93 @@ function ImageUpload() {
 
     const selectImage = (event) => {
 
-        const file = event.target.files[0];
+        const file =
+            event.target.files[0];
+
 
         if (!file) {
             return;
         }
 
+
         setImage(file);
+
 
         setPreview(
             URL.createObjectURL(file)
         );
 
-        // Clear old result
+
         setResult(null);
+
         setError("");
+
     };
 
+
     // ============================================================
-    // UPLOAD / ANALYZE IMAGE
+    // ANALYZE IMAGE
     // ============================================================
 
     const uploadImage = async () => {
 
         if (!image) {
 
-            alert("Please select an image.");
+            alert(
+                "Please select an image."
+            );
 
             return;
+
         }
 
-        const formData = new FormData();
 
-        formData.append("image", image);
+        const formData =
+            new FormData();
+
+
+        formData.append(
+            "image",
+            image
+        );
+
 
         try {
 
             setLoading(true);
+
             setError("");
+
             setResult(null);
 
-            const response = await API.post(
-                "/analyze-image",
-                formData,
-                {
-                    headers: {
-                        "Content-Type": "multipart/form-data",
-                    },
-                }
-            );
+
+            const response =
+                await API.post(
+
+                    "/analyze-image",
+
+                    formData,
+
+                    {
+                        headers: {
+                            "Content-Type":
+                                "multipart/form-data"
+                        }
+                    }
+
+                );
+
 
             console.log(
                 "Image Analysis Result:",
                 response.data
             );
 
-            setResult(response.data);
+
+            setResult(
+                response.data
+            );
+
 
         } catch (err) {
 
@@ -93,6 +138,7 @@ function ImageUpload() {
                 err
             );
 
+
             if (err.response) {
 
                 console.log(
@@ -100,11 +146,17 @@ function ImageUpload() {
                     err.response.data
                 );
 
+
                 setError(
+
                     err.response.data?.details ||
+
                     err.response.data?.error ||
+
                     `Server Error: ${err.response.status}`
+
                 );
+
 
             } else if (err.request) {
 
@@ -112,59 +164,223 @@ function ImageUpload() {
                     "No response from Flask server."
                 );
 
+
             } else {
 
-                setError(err.message);
+                setError(
+                    err.message
+                );
+
             }
+
 
         } finally {
 
             setLoading(false);
+
         }
+
     };
+
+
+    // ============================================================
+    // DOWNLOAD PDF REPORT
+    // ============================================================
+
+    const downloadPdfReport = async () => {
+
+        if (!result) {
+
+            alert(
+                "Please analyze an image first."
+            );
+
+            return;
+
+        }
+
+
+        try {
+
+            setPdfLoading(true);
+
+            setError("");
+
+
+            const reportData = {
+
+                ...result,
+
+                input_type: "Image"
+
+            };
+
+
+            console.log(
+                "Generating PDF:",
+                reportData
+            );
+
+
+            const response =
+                await API.post(
+
+                    "/generate-pdf",
+
+                    reportData
+
+                );
+
+
+            console.log(
+                "PDF response:",
+                response.data
+            );
+
+
+            if (
+                response.data?.success &&
+                response.data?.pdf_url
+            ) {
+
+                const pdfUrl =
+                    `http://127.0.0.1:5000${response.data.pdf_url}`;
+
+
+                window.open(
+                    pdfUrl,
+                    "_blank",
+                    "noopener,noreferrer"
+                );
+
+
+            } else {
+
+                setError(
+
+                    response.data?.error ||
+
+                    "PDF generation failed."
+
+                );
+
+            }
+
+
+        } catch (err) {
+
+            console.error(
+                "PDF generation error:",
+                err
+            );
+
+
+            setError(
+
+                err.response?.data?.details ||
+
+                err.response?.data?.error ||
+
+                err.message ||
+
+                "Could not generate PDF report."
+
+            );
+
+
+        } finally {
+
+            setPdfLoading(false);
+
+        }
+
+    };
+
 
     // ============================================================
     // SAFE RESULT DATA
     // ============================================================
 
     const objects =
-        Array.isArray(result?.objects)
+        Array.isArray(
+            result?.objects
+        )
             ? result.objects
             : [];
+
 
     const objectCounts =
         result?.object_counts &&
         typeof result.object_counts === "object"
+
             ? result.object_counts
+
             : {};
 
+
     const ocrText =
-        Array.isArray(result?.text)
+        Array.isArray(
+            result?.text
+        )
             ? result.text
             : [];
 
+
     const faces =
-        Array.isArray(result?.faces)
+        Array.isArray(
+            result?.faces
+        )
             ? result.faces
             : [];
+
 
     // ============================================================
     // CHART DATA
     // ============================================================
 
-    const chartData = objects.map(
-        (obj, index) => ({
+    const chartData =
+        objects.map(
+            (obj, index) => ({
 
-            name: `${obj.name} ${index + 1}`,
+                name:
+                    `${obj.name || "Object"} ${index + 1}`,
 
-            confidence:
-                typeof obj.confidence === "number"
-                    ? Number(
-                        obj.confidence.toFixed(2)
-                    )
-                    : 0,
-        })
-    );
+                confidence:
+                    typeof obj.confidence === "number"
+
+                        ? Number(
+                            (
+                                obj.confidence * 100
+                            ).toFixed(2)
+                        )
+
+                        : 0,
+
+            })
+        );
+
+
+    // ============================================================
+    // FORMAT CONFIDENCE
+    // ============================================================
+
+    const formatConfidence = (value) => {
+
+        if (
+            typeof value !== "number"
+        ) {
+
+            return "N/A";
+
+        }
+
+
+        return `${(
+            value * 100
+        ).toFixed(2)}%`;
+
+    };
+
 
     // ============================================================
     // UI
@@ -174,46 +390,63 @@ function ImageUpload() {
 
         <div className="container mt-5 mb-5">
 
-            {/* ================================================= */}
+
+            {/* ================================================== */}
             {/* TITLE */}
-            {/* ================================================= */}
+            {/* ================================================== */}
 
             <div className="text-center mb-4">
 
                 <h2>
+
                     AI Image Processor
+
                 </h2>
 
+
                 <p className="text-muted">
+
                     Upload an image and analyze it
                     using AI.
+
                 </p>
 
             </div>
 
 
-            {/* ================================================= */}
+            {/* ================================================== */}
             {/* IMAGE SELECT */}
-            {/* ================================================= */}
+            {/* ================================================== */}
 
             <div className="card shadow">
 
                 <div className="card-header">
 
                     <h5 className="mb-0">
+
                         Select Image
+
                     </h5>
 
                 </div>
 
+
                 <div className="card-body">
 
                     <input
+
                         type="file"
+
                         className="form-control"
+
                         accept="image/*"
-                        onChange={selectImage}
+
+                        onChange={
+                            selectImage
+                        }
+
                     />
+
 
                     {image && (
 
@@ -223,8 +456,11 @@ function ImageUpload() {
                                 Selected:
                             </strong>
 
+
                             <span className="ms-2">
+
                                 {image.name}
+
                             </span>
 
                         </div>
@@ -236,9 +472,9 @@ function ImageUpload() {
             </div>
 
 
-            {/* ================================================= */}
+            {/* ================================================== */}
             {/* IMAGE PREVIEW */}
-            {/* ================================================= */}
+            {/* ================================================== */}
 
             {preview && (
 
@@ -247,20 +483,28 @@ function ImageUpload() {
                     <div className="card-header">
 
                         <h5 className="mb-0">
+
                             Uploaded Image
+
                         </h5>
 
                     </div>
 
+
                     <div className="card-body text-center">
 
                         <img
+
                             src={preview}
+
                             alt="Uploaded Preview"
+
                             className="img-fluid rounded"
+
                             style={{
-                                maxHeight: "500px",
+                                maxHeight: "500px"
                             }}
+
                         />
 
                     </div>
@@ -270,43 +514,53 @@ function ImageUpload() {
             )}
 
 
-            {/* ================================================= */}
+            {/* ================================================== */}
             {/* ANALYZE BUTTON */}
-            {/* ================================================= */}
+            {/* ================================================== */}
 
             <div className="text-center">
 
                 <button
+
                     className="btn btn-success mt-4"
-                    onClick={uploadImage}
+
+                    onClick={
+                        uploadImage
+                    }
+
                     disabled={
                         loading || !image
                     }
+
                 >
 
                     {loading
                         ? "Analyzing..."
-                        : "Analyze Image"
-                    }
+                        : "Analyze Image"}
 
                 </button>
 
             </div>
 
 
-            {/* ================================================= */}
+            {/* ================================================== */}
             {/* LOADING */}
-            {/* ================================================= */}
+            {/* ================================================== */}
 
             {loading && (
 
                 <div className="text-center mt-4">
 
                     <div
+
                         className="spinner-border text-success"
+
                         role="status"
+
                     >
+
                     </div>
+
 
                     <p className="text-muted mt-2">
 
@@ -320,9 +574,9 @@ function ImageUpload() {
             )}
 
 
-            {/* ================================================= */}
+            {/* ================================================== */}
             {/* ERROR */}
-            {/* ================================================= */}
+            {/* ================================================== */}
 
             {error && (
 
@@ -332,8 +586,11 @@ function ImageUpload() {
                         Error:
                     </strong>
 
+
                     <div className="mt-2">
+
                         {error}
+
                     </div>
 
                 </div>
@@ -341,38 +598,83 @@ function ImageUpload() {
             )}
 
 
-            {/* ================================================= */}
+            {/* ================================================== */}
             {/* RESULTS */}
-            {/* ================================================= */}
+            {/* ================================================== */}
 
             {result && (
 
                 <div className="mt-5">
 
+
                     <h3 className="mb-4">
+
                         Analysis Result
+
                     </h3>
 
 
-                    {/* ========================================= */}
-                    {/* IMAGE CAPTION */}
-                    {/* ========================================= */}
+                    {/* ==========================================
+                        DETAILED AI DESCRIPTION
+                    ========================================== */}
 
                     <div className="card mb-4 shadow">
 
                         <div className="card-header">
 
                             <strong>
-                                Image Caption
+
+                                Detailed AI Description
+
                             </strong>
 
                         </div>
+
+
+                        <div className="card-body">
+
+                            <p className="mb-0">
+
+                                {result.detailed_description ||
+
+                                    result.description ||
+
+                                    result.caption ||
+
+                                    "No detailed description generated."
+
+                                }
+
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    {/* ==========================================
+                        IMAGE CAPTION
+                    ========================================== */}
+
+                    <div className="card mb-4 shadow">
+
+                        <div className="card-header">
+
+                            <strong>
+
+                                Image Caption
+
+                            </strong>
+
+                        </div>
+
 
                         <div className="card-body">
 
                             <p className="mb-0">
 
                                 {result.caption ||
+
                                     "No Caption Generated"}
 
                             </p>
@@ -382,19 +684,22 @@ function ImageUpload() {
                     </div>
 
 
-                    {/* ========================================= */}
-                    {/* DETECTED OBJECTS */}
-                    {/* ========================================= */}
+                    {/* ==========================================
+                        DETECTED OBJECTS
+                    ========================================== */}
 
                     <div className="card mb-4 shadow">
 
                         <div className="card-header">
 
                             <strong>
+
                                 Detected Objects
+
                             </strong>
 
                         </div>
+
 
                         <div className="card-body">
 
@@ -421,40 +726,50 @@ function ImageUpload() {
                                                 </th>
 
                                                 <th>
-                                                    Confidence (%)
+                                                    Confidence
                                                 </th>
 
                                             </tr>
 
                                         </thead>
 
+
                                         <tbody>
 
                                             {objects.map(
-                                                (obj, index) => (
+
+                                                (
+                                                    obj,
+                                                    index
+                                                ) => (
 
                                                     <tr
-                                                        key={index}
+                                                        key={
+                                                            index
+                                                        }
                                                     >
 
                                                         <td>
-                                                            {obj.name}
+
+                                                            {
+                                                                obj.name
+                                                            }
+
                                                         </td>
+
 
                                                         <td>
 
-                                                            {typeof obj.confidence ===
-                                                            "number"
-                                                                ? obj.confidence.toFixed(
-                                                                    2
-                                                                )
-                                                                : "N/A"}
+                                                            {formatConfidence(
+                                                                obj.confidence
+                                                            )}
 
                                                         </td>
 
                                                     </tr>
 
                                                 )
+
                                             )}
 
                                         </tbody>
@@ -470,19 +785,22 @@ function ImageUpload() {
                     </div>
 
 
-                    {/* ========================================= */}
-                    {/* OBJECT COUNT */}
-                    {/* ========================================= */}
+                    {/* ==========================================
+                        OBJECT COUNT
+                    ========================================== */}
 
                     <div className="card mb-4 shadow">
 
                         <div className="card-header">
 
                             <strong>
+
                                 Object Count
+
                             </strong>
 
                         </div>
+
 
                         <div className="card-body">
 
@@ -519,15 +837,26 @@ function ImageUpload() {
 
                                         </thead>
 
+
                                         <tbody>
 
                                             {Object.entries(
+
                                                 objectCounts
+
                                             ).map(
-                                                ([name, count]) => (
+
+                                                (
+                                                    [
+                                                        name,
+                                                        count
+                                                    ]
+                                                ) => (
 
                                                     <tr
-                                                        key={name}
+                                                        key={
+                                                            name
+                                                        }
                                                     >
 
                                                         <td>
@@ -541,6 +870,7 @@ function ImageUpload() {
                                                     </tr>
 
                                                 )
+
                                             )}
 
                                         </tbody>
@@ -556,25 +886,31 @@ function ImageUpload() {
                     </div>
 
 
-                    {/* ========================================= */}
-                    {/* CONFIDENCE CHART */}
-                    {/* ========================================= */}
+                    {/* ==========================================
+                        CONFIDENCE CHART
+                    ========================================== */}
 
                     <div className="card mb-4 shadow">
 
                         <div className="card-header">
 
                             <strong>
+
                                 Confidence Chart
+
                             </strong>
 
                         </div>
 
+
                         <div
+
                             className="card-body"
+
                             style={{
-                                height: "350px",
+                                height: "350px"
                             }}
+
                         >
 
                             {chartData.length === 0 ? (
@@ -589,30 +925,39 @@ function ImageUpload() {
                             ) : (
 
                                 <ResponsiveContainer
+
                                     width="100%"
+
                                     height="100%"
+
                                 >
 
                                     <BarChart
-                                        data={chartData}
+                                        data={
+                                            chartData
+                                        }
                                     >
 
                                         <CartesianGrid
                                             strokeDasharray="3 3"
                                         />
 
+
                                         <XAxis
                                             dataKey="name"
                                         />
 
+
                                         <YAxis
                                             domain={[
                                                 0,
-                                                100,
+                                                100
                                             ]}
                                         />
 
+
                                         <Tooltip />
+
 
                                         <Bar
                                             dataKey="confidence"
@@ -629,19 +974,22 @@ function ImageUpload() {
                     </div>
 
 
-                    {/* ========================================= */}
-                    {/* OCR */}
-                    {/* ========================================= */}
+                    {/* ==========================================
+                        OCR
+                    ========================================== */}
 
                     <div className="card mb-4 shadow">
 
                         <div className="card-header">
 
                             <strong>
+
                                 OCR Text
+
                             </strong>
 
                         </div>
+
 
                         <div className="card-body">
 
@@ -658,16 +1006,11 @@ function ImageUpload() {
                                 <div>
 
                                     {ocrText.map(
-                                        (item, index) => {
 
-                                            /*
-                                             * OCR normally returns:
-                                             *
-                                             * {
-                                             *   text: "...",
-                                             *   confidence: 0.57
-                                             * }
-                                             */
+                                        (
+                                            item,
+                                            index
+                                        ) => {
 
                                             if (
                                                 typeof item ===
@@ -677,21 +1020,34 @@ function ImageUpload() {
                                                 return (
 
                                                     <div
+
                                                         className="border rounded p-3 mb-2"
-                                                        key={index}
+
+                                                        key={
+                                                            index
+                                                        }
+
                                                     >
 
                                                         <div>
 
                                                             <strong>
+
                                                                 Text:
+
                                                             </strong>
 
+
                                                             <span className="ms-2">
-                                                                {item.text}
+
+                                                                {
+                                                                    item.text
+                                                                }
+
                                                             </span>
 
                                                         </div>
+
 
                                                         <div className="text-muted mt-1">
 
@@ -701,15 +1057,13 @@ function ImageUpload() {
 
                                                                 {typeof item.confidence ===
                                                                 "number"
-                                                                    ? (
+
+                                                                    ? `${(
                                                                         item.confidence *
                                                                         100
-                                                                    ).toFixed(
-                                                                        2
-                                                                    )
-                                                                    : "N/A"}
+                                                                    ).toFixed(2)}%`
 
-                                                                %
+                                                                    : "N/A"}
 
                                                             </span>
 
@@ -721,20 +1075,29 @@ function ImageUpload() {
 
                                             }
 
+
                                             return (
 
                                                 <div
+
                                                     className="border rounded p-2 mb-2"
-                                                    key={index}
+
+                                                    key={
+                                                        index
+                                                    }
+
                                                 >
 
-                                                    {String(item)}
+                                                    {String(
+                                                        item
+                                                    )}
 
                                                 </div>
 
                                             );
 
                                         }
+
                                     )}
 
                                 </div>
@@ -746,29 +1109,38 @@ function ImageUpload() {
                     </div>
 
 
-                    {/* ========================================= */}
-                    {/* FACE DETECTION */}
-                    {/* ========================================= */}
+                    {/* ==========================================
+                        FACE DETECTION
+                    ========================================== */}
 
                     <div className="card mb-4 shadow">
 
                         <div className="card-header">
 
                             <strong>
+
                                 Face Detection
+
                             </strong>
 
                         </div>
 
+
                         <div className="card-body text-center">
 
                             <h1>
+
                                 {faces.length}
+
                             </h1>
 
+
                             <h5>
+
                                 Face(s) Detected
+
                             </h5>
+
 
                             {faces.length > 0 && (
 
@@ -808,41 +1180,76 @@ function ImageUpload() {
 
                                         </thead>
 
+
                                         <tbody>
 
                                             {faces.map(
-                                                (face, index) => (
+
+                                                (
+                                                    face,
+                                                    index
+                                                ) => (
 
                                                     <tr
-                                                        key={index}
+                                                        key={
+                                                            index
+                                                        }
                                                     >
 
                                                         <td>
+
                                                             Face{" "}
                                                             {index + 1}
+
                                                         </td>
 
-                                                        <td>
-                                                            {face.xmin}
-                                                        </td>
 
                                                         <td>
-                                                            {face.ymin}
+
+                                                            {
+                                                                face.xmin
+                                                            }
+
                                                         </td>
 
-                                                        <td>
-                                                            {face.width}
-                                                        </td>
 
                                                         <td>
-                                                            {face.height}
+
+                                                            {
+                                                                face.ymin
+                                                            }
+
                                                         </td>
+
+
+                                                        <td>
+
+                                                            {
+                                                                face.width
+                                                            }
+
+                                                        </td>
+
+
+                                                        <td>
+
+                                                            {
+                                                                face.height
+                                                            }
+
+                                                        </td>
+
 
                                                         <td>
 
                                                             {typeof face.confidence ===
                                                             "number"
-                                                                ? `${face.confidence}%`
+
+                                                                ? `${(
+                                                                    face.confidence *
+                                                                    100
+                                                                ).toFixed(2)}%`
+
                                                                 : "N/A"}
 
                                                         </td>
@@ -850,6 +1257,7 @@ function ImageUpload() {
                                                     </tr>
 
                                                 )
+
                                             )}
 
                                         </tbody>
@@ -865,15 +1273,75 @@ function ImageUpload() {
                     </div>
 
 
-                    {/* ========================================= */}
-                    {/* SUCCESS */}
-                    {/* ========================================= */}
+                    {/* ==========================================
+                        PDF REPORT
+                    ========================================== */}
+
+                    <div className="card mb-4 shadow">
+
+                        <div className="card-header">
+
+                            <strong>
+
+                                Analysis Report
+
+                            </strong>
+
+                        </div>
+
+
+                        <div className="card-body text-center">
+
+                            <p className="text-muted">
+
+                                Download all available
+                                image-analysis results
+                                as a PDF report.
+
+                            </p>
+
+
+                            <button
+
+                                className="btn btn-danger"
+
+                                onClick={
+                                    downloadPdfReport
+                                }
+
+                                disabled={
+                                    pdfLoading
+                                }
+
+                            >
+
+                                {pdfLoading
+
+                                    ? "Generating PDF..."
+
+                                    : "Download PDF Report"
+
+                                }
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    {/* ==========================================
+                        SUCCESS
+                    ========================================== */}
 
                     <div className="alert alert-success">
 
                         <strong>
+
                             Analysis Completed Successfully!
+
                         </strong>
+
 
                         <div className="mt-1">
 
@@ -890,7 +1358,10 @@ function ImageUpload() {
             )}
 
         </div>
+
     );
+
 }
+
 
 export default ImageUpload;

@@ -1,8 +1,11 @@
 import { useState } from "react";
 import API from "../services/api";
 
-
 function VideoUpload() {
+
+    // ============================================================
+    // STATE
+    // ============================================================
 
     const [video, setVideo] =
         useState(null);
@@ -13,6 +16,9 @@ function VideoUpload() {
     const [uploading, setUploading] =
         useState(false);
 
+    const [pdfLoading, setPdfLoading] =
+        useState(false);
+
     const [result, setResult] =
         useState(null);
 
@@ -20,9 +26,9 @@ function VideoUpload() {
         useState("");
 
 
-    // ========================================================
+    // ============================================================
     // SELECT VIDEO
-    // ========================================================
+    // ============================================================
 
     const handleVideoChange = (event) => {
 
@@ -41,13 +47,16 @@ function VideoUpload() {
             selectedVideo
         );
 
+
         setResult(
             null
         );
 
+
         setError(
             ""
         );
+
 
         setProgress(
             0
@@ -56,9 +65,9 @@ function VideoUpload() {
     };
 
 
-    // ========================================================
+    // ============================================================
     // UPLOAD VIDEO
-    // ========================================================
+    // ============================================================
 
     const uploadVideo = async () => {
 
@@ -79,22 +88,25 @@ function VideoUpload() {
                 true
             );
 
+
             setProgress(
                 0
             );
 
+
             setResult(
                 null
             );
+
 
             setError(
                 ""
             );
 
 
-            // ------------------------------------------------
+            // ----------------------------------------------------
             // FormData
-            // ------------------------------------------------
+            // ----------------------------------------------------
 
             const formData =
                 new FormData();
@@ -106,35 +118,49 @@ function VideoUpload() {
             );
 
 
-            // ------------------------------------------------
+            // ----------------------------------------------------
             // API
-            // ------------------------------------------------
+            // ----------------------------------------------------
 
-            const response = await API.post(
-        "/upload/video",
-        formData,
-        {
+            const response =
+                await API.post(
 
-            onUploadProgress:
-                (event) => {
+                    "/upload/video",
 
-                    if (event.total) {
+                    formData,
 
-                        const percent =
-                            Math.round(
-                                (event.loaded * 100) /
-                                event.total
-                            );
+                    {
 
-                        setProgress(percent);
+                        onUploadProgress:
+                            (event) => {
+
+                                if (
+                                    event.total
+                                ) {
+
+                                    const percent =
+                                        Math.round(
+
+                                            (
+                                                event.loaded *
+                                                100
+                                            ) /
+                                            event.total
+
+                                        );
+
+
+                                    setProgress(
+                                        percent
+                                    );
+
+                                }
+
+                            }
 
                     }
 
-                }
-
-        }
-
-    );
+                );
 
 
             console.log(
@@ -143,9 +169,9 @@ function VideoUpload() {
             );
 
 
-            // ------------------------------------------------
-            // Check response
-            // ------------------------------------------------
+            // ----------------------------------------------------
+            // CHECK RESPONSE
+            // ----------------------------------------------------
 
             if (
                 response.data.success
@@ -155,15 +181,18 @@ function VideoUpload() {
                     response.data
                 );
 
+
                 setProgress(
                     100
                 );
+
 
             } else {
 
                 setError(
 
                     response.data.error ||
+
                     "Video processing failed"
 
                 );
@@ -189,6 +218,7 @@ function VideoUpload() {
 
             );
 
+
         } finally {
 
             setUploading(
@@ -200,9 +230,145 @@ function VideoUpload() {
     };
 
 
-    // ========================================================
+    // ============================================================
+    // DOWNLOAD PDF REPORT
+    // ============================================================
+
+    const downloadPdfReport = async () => {
+
+        if (!result) {
+
+            alert(
+                "Please process the video first."
+            );
+
+            return;
+
+        }
+
+
+        try {
+
+            setPdfLoading(
+                true
+            );
+
+
+            setError(
+                ""
+            );
+
+
+            // ----------------------------------------------------
+            // Prepare report data
+            // ----------------------------------------------------
+
+            const reportData = {
+
+                ...result,
+
+                input_type:
+                    "Video"
+
+            };
+
+
+            console.log(
+                "Generating video PDF:",
+                reportData
+            );
+
+
+            // ----------------------------------------------------
+            // Generate PDF
+            // ----------------------------------------------------
+
+            const response =
+                await API.post(
+
+                    "/generate-pdf",
+
+                    reportData
+
+                );
+
+
+            console.log(
+                "PDF response:",
+                response.data
+            );
+
+
+            // ----------------------------------------------------
+            // Open generated PDF
+            // ----------------------------------------------------
+
+            if (
+
+                response.data?.success &&
+
+                response.data?.pdf_url
+
+            ) {
+
+                const pdfUrl =
+                    `http://127.0.0.1:5000${response.data.pdf_url}`;
+
+
+                window.open(
+                    pdfUrl,
+                    "_blank"
+                );
+
+
+            } else {
+
+                setError(
+
+                    response.data?.error ||
+
+                    "PDF generation failed."
+
+                );
+
+            }
+
+
+        } catch (error) {
+
+            console.error(
+                "Video PDF generation error:",
+                error
+            );
+
+
+            setError(
+
+                error.response?.data?.details ||
+
+                error.response?.data?.error ||
+
+                error.message ||
+
+                "Could not generate PDF report."
+
+            );
+
+
+        } finally {
+
+            setPdfLoading(
+                false
+            );
+
+        }
+
+    };
+
+
+    // ============================================================
     // FORMAT DURATION
-    // ========================================================
+    // ============================================================
 
     const formatDuration = (
         seconds
@@ -239,13 +405,23 @@ function VideoUpload() {
     };
 
 
-    // ========================================================
+    // ============================================================
     // FORMAT CONFIDENCE
-    // ========================================================
+    // ============================================================
 
     const formatConfidence = (
         value
     ) => {
+
+        if (
+            typeof value !==
+            "number"
+        ) {
+
+            return "N/A";
+
+        }
+
 
         return (
             (value * 100)
@@ -256,9 +432,36 @@ function VideoUpload() {
     };
 
 
-    // ========================================================
+    // ============================================================
+    // SAFE OBJECT DATA
+    // ============================================================
+
+    const objects =
+        result?.objects &&
+        typeof result.objects ===
+        "object"
+
+            ? result.objects
+
+            : {};
+
+
+    // ============================================================
+    // DETAILED DESCRIPTION
+    // ============================================================
+
+    const detailedDescription =
+
+        result?.detailed_description ||
+
+        result?.description ||
+
+        "The video was analyzed frame by frame using AI object detection.";
+
+
+    // ============================================================
     // UI
-    // ========================================================
+    // ============================================================
 
     return (
 
@@ -283,7 +486,9 @@ function VideoUpload() {
             <div className="card shadow p-4">
 
 
-                {/* VIDEO INPUT */}
+                {/* ==================================================
+                    VIDEO INPUT
+                ================================================== */}
 
                 <input
 
@@ -300,7 +505,9 @@ function VideoUpload() {
                 />
 
 
-                {/* SELECTED VIDEO */}
+                {/* ==================================================
+                    SELECTED VIDEO
+                ================================================== */}
 
                 {video && (
 
@@ -319,7 +526,9 @@ function VideoUpload() {
                 )}
 
 
-                {/* UPLOAD BUTTON */}
+                {/* ==================================================
+                    UPLOAD BUTTON
+                ================================================== */}
 
                 <button
 
@@ -410,6 +619,36 @@ function VideoUpload() {
                         Video Analysis Summary
 
                     </h3>
+
+
+                    {/* ==================================================
+                        DETAILED AI DESCRIPTION
+                    ================================================== */}
+
+                    <div className="card shadow-sm mb-4">
+
+                        <div className="card-header">
+
+                            <strong>
+
+                                Detailed AI Description
+
+                            </strong>
+
+                        </div>
+
+
+                        <div className="card-body">
+
+                            <p className="mb-0">
+
+                                {detailedDescription}
+
+                            </p>
+
+                        </div>
+
+                    </div>
 
 
                     {/* ==================================================
@@ -508,10 +747,11 @@ function VideoUpload() {
 
                                 <h4>
 
-                                    {Object.keys(
-                                        result.objects ||
-                                        {}
-                                    ).length}
+                                    {
+                                        Object.keys(
+                                            objects
+                                        ).length
+                                    }
 
                                 </h4>
 
@@ -553,7 +793,7 @@ function VideoUpload() {
 
 
                     {Object.keys(
-                        result.objects || {}
+                        objects
                     ).length === 0 ? (
 
                         <p className="text-muted">
@@ -600,7 +840,7 @@ function VideoUpload() {
                                 <tbody>
 
                                     {Object.entries(
-                                        result.objects
+                                        objects
                                     ).map(
 
                                         (
@@ -738,6 +978,7 @@ function VideoUpload() {
                     ================================================== */}
 
                     {result.frame_detections &&
+
                         result.frame_detections.length > 0 && (
 
                         <div className="mt-5">
@@ -750,17 +991,28 @@ function VideoUpload() {
 
 
                             <div
+
                                 className="border rounded p-3"
+
                                 style={{
+
                                     maxHeight:
                                         "400px",
+
                                     overflowY:
                                         "auto"
+
                                 }}
+
                             >
 
                                 {result.frame_detections
-                                    .slice(0, 100)
+
+                                    .slice(
+                                        0,
+                                        100
+                                    )
+
                                     .map(
 
                                         (
@@ -809,10 +1061,13 @@ function VideoUpload() {
                                                     ) => (
 
                                                         <span
+
                                                             key={
                                                                 index
                                                             }
+
                                                             className="badge bg-secondary me-2 mt-1"
+
                                                         >
 
                                                             {
@@ -822,9 +1077,13 @@ function VideoUpload() {
                                                             {" "}
 
                                                             (
+
                                                             {formatConfidence(
+
                                                                 object.confidence
+
                                                             )}
+
                                                             )
 
                                                         </span>
@@ -844,6 +1103,62 @@ function VideoUpload() {
                         </div>
 
                     )}
+
+
+                    {/* ==================================================
+                        PDF REPORT
+                    ================================================== */}
+
+                    <div className="card shadow-sm mt-5">
+
+                        <div className="card-body text-center">
+
+
+                            <h4>
+
+                                Video Analysis Report
+
+                            </h4>
+
+
+                            <p className="text-muted">
+
+                                Download the complete video
+                                analysis, object statistics,
+                                confidence values and
+                                processing information.
+
+                            </p>
+
+
+                            <button
+
+                                className="btn btn-danger"
+
+                                onClick={
+                                    downloadPdfReport
+                                }
+
+                                disabled={
+                                    pdfLoading
+                                }
+
+                            >
+
+                                {pdfLoading
+
+                                    ? "Generating PDF..."
+
+                                    : "Download PDF Report"
+
+                                }
+
+                            </button>
+
+
+                        </div>
+
+                    </div>
 
                 </div>
 

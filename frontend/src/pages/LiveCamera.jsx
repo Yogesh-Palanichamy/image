@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+    useEffect,
+    useRef,
+    useState
+} from "react";
+
 import API from "../services/api";
+
 
 function LiveCamera() {
 
@@ -7,13 +13,17 @@ function LiveCamera() {
     // REFERENCES
     // ========================================================
 
-    const videoRef = useRef(null);
+    const videoRef =
+        useRef(null);
 
-    const canvasRef = useRef(null);
+    const canvasRef =
+        useRef(null);
 
-    const hiddenCanvasRef = useRef(null);
+    const hiddenCanvasRef =
+        useRef(null);
 
-    const streamRef = useRef(null);
+    const streamRef =
+        useRef(null);
 
     const detectionIntervalRef =
         useRef(null);
@@ -54,6 +64,10 @@ function LiveCamera() {
 
     const [framesAnalyzed, setFramesAnalyzed] =
         useState(0);
+
+    // PDF loading state
+    const [pdfLoading, setPdfLoading] =
+        useState(false);
 
 
     // ========================================================
@@ -177,7 +191,8 @@ function LiveCamera() {
                 );
 
 
-            streamRef.current = null;
+            streamRef.current =
+                null;
 
         }
 
@@ -814,7 +829,7 @@ function LiveCamera() {
                 // Confidence
                 trackData[key]
                     .confidenceTotal +=
-                    item.confidence;
+                        item.confidence;
 
 
                 // Highest
@@ -893,12 +908,12 @@ function LiveCamera() {
 
                 objects[name]
                     .totalFrames +=
-                    track.framesSeen;
+                        track.framesSeen;
 
 
                 objects[name]
                     .confidenceTotal +=
-                    track.confidenceTotal;
+                        track.confidenceTotal;
 
 
                 if (
@@ -1040,6 +1055,178 @@ function LiveCamera() {
 
 
     // ========================================================
+    // DOWNLOAD PDF REPORT
+    // ========================================================
+
+    const downloadPdfReport = async () => {
+
+        if (!sessionSummary) {
+
+            alert(
+                "Stop the camera first to generate the session report."
+            );
+
+            return;
+
+        }
+
+
+        try {
+
+            setPdfLoading(true);
+
+            setError("");
+
+
+            // ==================================================
+            // PREPARE LIVE REPORT DATA
+            // ==================================================
+
+            const reportData = {
+
+                input_type:
+                    "Live Camera",
+
+                session_id:
+                    sessionIdRef.current,
+
+                duration:
+                    sessionSummary.duration,
+
+                frames_analyzed:
+                    framesAnalyzed,
+
+                total_frames:
+                    framesAnalyzed,
+
+                totalDetections:
+                    sessionSummary.totalDetections,
+
+                total_detections:
+                    sessionSummary.totalDetections,
+
+                uniqueTracks:
+                    sessionSummary.uniqueTracks,
+
+                unique_tracks:
+                    sessionSummary.uniqueTracks,
+
+                objectTypes:
+                    sessionSummary.objectTypes,
+
+                object_types:
+                    sessionSummary.objectTypes,
+
+                mostDetected:
+                    sessionSummary.mostDetected,
+
+                mostDetectedCount:
+                    sessionSummary.mostDetectedCount,
+
+                most_detected:
+                    sessionSummary.mostDetected,
+
+                most_detected_count:
+                    sessionSummary.mostDetectedCount,
+
+                objects:
+                    sessionSummary.objects,
+
+                frame_detections:
+                    detectionHistoryRef.current
+
+            };
+
+
+            console.log(
+                "Live PDF report data:",
+                reportData
+            );
+
+
+            // ==================================================
+            // GENERATE PDF
+            // ==================================================
+
+            const response =
+                await API.post(
+
+                    "/generate-pdf",
+
+                    reportData
+
+                );
+
+
+            console.log(
+                "Live PDF response:",
+                response.data
+            );
+
+
+            // ==================================================
+            // OPEN PDF
+            // ==================================================
+
+            if (
+                response.data?.success &&
+                response.data?.pdf_url
+            ) {
+
+                const pdfUrl =
+                    `http://127.0.0.1:5000${response.data.pdf_url}`;
+
+
+                window.open(
+                    pdfUrl,
+                    "_blank"
+                );
+
+
+            } else {
+
+                setError(
+
+                    response.data?.error ||
+
+                    "PDF generation failed."
+
+                );
+
+            }
+
+
+        } catch (err) {
+
+            console.error(
+                "Live PDF generation error:",
+                err
+            );
+
+
+            setError(
+
+                err.response?.data?.details ||
+
+                err.response?.data?.error ||
+
+                err.message ||
+
+                "Could not generate PDF report."
+
+            );
+
+
+        } finally {
+
+            setPdfLoading(false);
+
+        }
+
+    };
+
+
+    // ========================================================
     // FORMAT TIME
     // ========================================================
 
@@ -1048,7 +1235,9 @@ function LiveCamera() {
     ) => {
 
         const totalSeconds =
-            Math.floor(seconds);
+            Math.floor(
+                seconds || 0
+            );
 
 
         const minutes =
@@ -1061,7 +1250,9 @@ function LiveCamera() {
             totalSeconds % 60;
 
 
-        return `${String(minutes).padStart(
+        return `${String(
+            minutes
+        ).padStart(
             2,
             "0"
         )}:${String(
@@ -1146,6 +1337,7 @@ function LiveCamera() {
 
                         <div
                             style={{
+
                                 position:
                                     "relative",
 
@@ -1157,6 +1349,7 @@ function LiveCamera() {
 
                                 margin:
                                     "auto"
+
                             }}
                         >
 
@@ -1395,7 +1588,9 @@ function LiveCamera() {
 
                                                 <strong>
 
-                                                    {item.object}
+                                                    {
+                                                        item.object
+                                                    }
 
                                                 </strong>
 
@@ -1688,7 +1883,9 @@ function LiveCamera() {
                                         ]
                                     ) => (
 
-                                        <tr key={name}>
+                                        <tr
+                                            key={name}
+                                        >
 
                                             <td>
 
@@ -1835,8 +2032,11 @@ function LiveCamera() {
                                                 ) => (
 
                                                     <div
+
                                                         key={`${name}-${track.id}-${index}`}
+
                                                         className="border rounded p-2 mb-2"
+
                                                     >
 
                                                         <strong>
@@ -1845,7 +2045,9 @@ function LiveCamera() {
 
                                                             {track.id !==
                                                                 null
+
                                                                 ? `#${track.id}`
+
                                                                 : "Unknown"}
 
                                                         </strong>
@@ -1886,7 +2088,6 @@ function LiveCamera() {
 
                                                         %
 
-
                                                     </div>
 
                                                 )
@@ -1905,6 +2106,64 @@ function LiveCamera() {
 
                     </div>
 
+
+                    {/* ==========================================
+                        PDF REPORT
+                    ========================================== */}
+
+                    <div className="card shadow-sm mt-5">
+
+                        <div className="card-body text-center">
+
+
+                            <h4>
+
+                                Live Camera Report
+
+                            </h4>
+
+
+                            <p className="text-muted">
+
+                                Download the complete live
+                                camera session summary,
+                                tracking information,
+                                confidence values and
+                                detection statistics.
+
+                            </p>
+
+
+                            <button
+
+                                className="btn btn-danger"
+
+                                onClick={
+                                    downloadPdfReport
+                                }
+
+                                disabled={
+                                    pdfLoading
+                                }
+
+                            >
+
+                                {pdfLoading
+
+                                    ? "Generating PDF..."
+
+                                    : "Download PDF Report"
+
+                                }
+
+                            </button>
+
+
+                        </div>
+
+                    </div>
+
+
                 </div>
 
             )}
@@ -1912,7 +2171,7 @@ function LiveCamera() {
         </div>
 
     );
-
 }
+
 
 export default LiveCamera;
